@@ -131,7 +131,7 @@ options:
     version_added: "2.0"
   s3_url:
     description:
-      - S3 URL endpoint for usage with Eucalypus, fakes3, etc.  Otherwise assumes AWS
+      - S3 URL endpoint for usage with Eucalypus, fakes3, rgw, etc.  Otherwise assumes AWS
     default: null
     aliases: [ S3_URL ]
   src:
@@ -354,6 +354,13 @@ def is_fakes3(s3_url):
     else:
         return False
 
+def is_rgw(s3_url):
+    """ Return True if s3_url has scheme rgw:// """
+    if s3_url is not None:
+        return urlparse.urlparse(s3_url).scheme in ('rgw', 'rgws')
+    else:
+        return False
+
 def is_walrus(s3_url):
     """ Return True if it's Walrus endpoint, not S3
 
@@ -444,7 +451,7 @@ def main():
         aws_connect_kwargs['calling_format'] = OrdinaryCallingFormat()
 
     # Look at s3_url and tweak connection settings
-    # if connecting to Walrus or fakes3
+    # if connecting to Walrus, rgw or fakes3
     try:
         if is_fakes3(s3_url):
             fakes3 = urlparse.urlparse(s3_url)
@@ -455,6 +462,12 @@ def main():
                 calling_format=OrdinaryCallingFormat(),
                 **aws_connect_kwargs
             )
+        elif is_rgw(s3_url):
+            rgw = urlparse.urlparse(s3_url)
+            s3 = boto.connect_s3(host=rgw.hostname, port=rgw.port,
+                    calling_format=OrdinaryCallingFormat(),
+                    is_secure=rgw.scheme == 'rgws',
+                    **aws_connect_kwargs)
         elif is_walrus(s3_url):
             walrus = urlparse.urlparse(s3_url).hostname
             s3 = boto.connect_walrus(walrus, **aws_connect_kwargs)
